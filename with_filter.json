@@ -1,0 +1,11 @@
+{
+  "APP": ["CORE", "UTIL", "TEST"],
+  "CORE": ["LOG", "DB"],
+  "UTIL": ["HELPER"],
+  "TEST": ["MOCK", "ASSERT"],
+  "LOG": [],
+  "DB": [],
+  "HELPER": [],
+  "MOCK": [],
+  "ASSERT": []
+}
