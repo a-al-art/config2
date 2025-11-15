@@ -45,7 +45,6 @@ def resolve_artifact_to_gav(artifact_input: str, base_repo_url: str) -> str:
     if artifact_id == "log4j":
         return "log4j:log4j:1.2.17"
 
-    # Fallback: heuristic groupId = artifactId
     group_id = artifact_id
     group_path = group_id.replace(".", "/")
     versions_url = f"{base_repo_url.rstrip('/')}/{group_path}/{artifact_id}/"
@@ -56,8 +55,6 @@ def resolve_artifact_to_gav(artifact_input: str, base_repo_url: str) -> str:
     except Exception as e:
         raise RuntimeError(f"Cannot list versions at {versions_url}: {e}")
 
-    # Simple regex-based version extraction
-    import re
     version_links = re.findall(r'<a\s+href="([^"/]+)/?"', html_content)
     versions = [v for v in version_links if re.match(r'^\d+(\.\d+)*$', v)]
 
@@ -140,6 +137,45 @@ def get_test_deps(pkg: str, graph: Dict[str, List[str]]) -> List[str]:
     return graph.get(pkg, [])
 
 
+def build_full_dependency_graph(
+    root_package: str,
+    get_deps_func,
+    base_repo_url: Optional[str] = None,
+    test_graph: Optional[Dict] = None,
+    filter_sub: str = "",
+) -> Dict[str, List[str]]:
+    graph = {}
+    stack = [root_package]
+    visited = set()
+
+    while stack:
+        current = stack.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+
+        if filter_sub and filter_sub in current:
+            graph[current] = []
+            continue
+
+        try:
+            if test_graph is not None:
+                deps = get_deps_func(current, test_graph)
+            else:
+                deps = get_deps_func(current, base_repo_url)
+        except Exception:
+            deps = []
+
+        filtered_deps = [d for d in deps if not (filter_sub and filter_sub in d)]
+        graph[current] = filtered_deps
+
+        for dep in reversed(filtered_deps):
+            if dep not in visited:
+                stack.append(dep)
+
+    return graph
+
+
 def print_ascii_tree(
     package: str,
     get_deps,
@@ -200,7 +236,6 @@ def main():
 
     args = parser.parse_args()
 
-    # === Stage 1: print user parameters ===
     print("User parameters:")
     for k, v in vars(args).items():
         print(f"  {k}: {v}")
@@ -223,7 +258,7 @@ def main():
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
         get_deps_func = get_test_deps
-    else:  # url mode
+    else:
         try:
             resolved = resolve_artifact_to_gav(args.package, args.repo)
             print(f"Resolved to full coordinates: {resolved}", file=sys.stderr)
@@ -234,15 +269,25 @@ def main():
         get_deps_func = fetch_dependencies_from_pom
         base_repo_url = args.repo
 
-    # === Stage 2 & 3: output ===
     if args.ascii_tree:
-        print(f"Dependency tree for '{root_package}':")
-        print("=" * 60)
-        print_ascii_tree(
+        full_graph = build_full_dependency_graph(
             root_package,
             get_deps_func,
-            test_graph=test_graph,
             base_repo_url=base_repo_url,
+            test_graph=test_graph,
+            filter_sub=args.filter,
+        )
+
+        print(f"Dependency tree for '{root_package}':")
+        print("=" * 60)
+
+        def get_deps_from_graph(pkg, _):
+            return full_graph.get(pkg, [])
+
+        print_ascii_tree(
+            root_package,
+            get_deps_from_graph,
+            test_graph=full_graph,
             filter_sub=args.filter,
         )
     else:
