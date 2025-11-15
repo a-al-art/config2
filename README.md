@@ -48,7 +48,7 @@ python main.py --package commons-logging --repo https://repo1.maven.org/maven2 -
 
 Тестовый режим с циклическим графом
 Создайте graph.json:
-
+`
 {
   "A": ["B", "C"],
   "B": ["D"],
@@ -56,9 +56,12 @@ python main.py --package commons-logging --repo https://repo1.maven.org/maven2 -
   "D": [],
   "E": ["A"]
 }
+`
+
 Запустите:
 python main.py --package A --repo graph.json --test-mode file --ascii-tree
 Вывод:
+`
 └── A
     ├── B
     │   └── D
@@ -66,6 +69,7 @@ python main.py --package A --repo graph.json --test-mode file --ascii-tree
         ├── D
         └── E
             └── A (.cycle.)
+`
 Поддерживаемые пакеты
 Инструмент корректно работает с пакетами, присутствующими в корне Maven Central , включая:
 
@@ -74,7 +78,8 @@ junit
 log4j
 logkit
 avalon-framework
-и многие другие
+и другие
+
 Для пакетов, где groupId != artifactId, требуется указывать полные координаты вручную (например, org.springframework:spring-core:5.3.0). 
 
 Требования
